@@ -3,156 +3,8 @@ use std::fs::File;
 use std::io::{self, Read, BufReader};
 use std::collections::HashMap;
 use std::io::BufRead;
+use sotn_str::{decode_menu_string, encode_menu_string, Platform};
 // use std::io::Seek;
-
-#[allow(dead_code)]
-fn dakuten(chr: char, prev: char) -> Option<char> {
-    match (chr, prev) {
-        ('゙', 'シ') => Some('ジ'),
-        ('゙', 'ク') => Some('グ'),
-        ('゙', 'て') => Some('で'),
-        ('゙', 'ト') => Some('ド'),
-        ('゙', 'サ') => Some('ザ'),
-        ('゙', 'タ') => Some('ダ'),
-        ('゙', 'か') => Some('が'),
-        ('゙', 'テ') => Some('デ'),
-        ('゙', 'ハ') => Some('バ'),
-        ('゙', 'セ') => Some('ゼ'),
-        ('゙', 'ホ') => Some('ボ'),
-        ('゙', 'ヒ') => Some('ビ'),
-        ('゙', 'こ') => Some('ご'),
-        ('゙', 'ふ') => Some('ぶ'),
-        ('゙', 'と') => Some('ど'),
-        ('゙', 'へ') => Some('べ'),
-        ('゙', 'ヘ') => Some('ベ'),
-        ('゙', 'ス') => Some('ズ'),
-        ('゙', 'カ') => Some('ガ'),
-        ('゙', 'ケ') => Some('ゲ'),
-        ('゙', 'し') => Some('じ'),
-        ('゙', 'き') => Some('ぎ'),
-        ('゙', 'は') => Some('ば'),
-        ('゙', 'フ') => Some('ブ'),
-        ('゙', 'ウ') => Some('ヴ'),
-        ('゙', 'さ') => Some('ざ'),
-        ('゙', 'ひ') => Some('び'),
-        ('゙', 'せ') => Some('ぜ'),
-        ('゙', 'コ') => Some('ゴ'),
-        ('゙', 'ほ') => Some('ぼ'),
-        ('゙', 'キ') => Some('ギ'),
-        ('゙', 'そ') => Some('ぞ'),
-        ('゙', 'た') => Some('だ'),
-        ('゙', 'ソ') => Some('ゾ'),
-        ('゙', 'く') => Some('ぐ'),
-        ('゚', 'フ') => Some('プ'),
-        ('゚', 'ヒ') => Some('ピ'),
-        ('゚', 'ハ') => Some('パ'),
-        ('゚', 'ヘ') => Some('ペ'),
-        ('゚', 'ホ') => Some('ポ'),
-        _ => None,
-    }
-}
-
-const TABLE: [char; 256] = [
-    //0      1      2      3      4      5      6      7      8      9      A      B      C      D      E      F
-    ' ',    '!',   '\'',  '#',   '$',   '%',   '&',   '\'',   '(',   ')',   '男',  '+',   ',',   '-',   '.',   '/',
-    '0',    '1',   '2',   '3',   '4',   '5',   '6',   '7',   '8',   '9',   ':',   '人',  '手',  '=',   '玉',  '?',
-    '石',   'A',   'B',   'C',   'D',   'E',   'F',   'G',   'H',   'I',   'J',   'K',   'L',   'M',   'N',   'O',
-    'P',    'Q',   'R',   'S',   'T',   'U',   'V',   'W',   'X',   'Y',   'Z',   '[',   '剣',  ']',   '盾',  '_',
-    '書',   'a',   'b',   'c',   'd',   'e',   'f',   'g',   'h',   'i',   'j',   'k',   'l',   'm',   'n',   'o',
-    'p',    'q',   'r',   's',   't',   'u',   'v',   'w',   'x',   'y',   'z',   '炎',  '氷',  '雷',  '~',   '女',
-    '力',   '。',   '「',  '」',  '、',  '・',  'ヲ',  'ァ',  'ィ',   'ゥ',  'ェ',  'ォ',  'ャ',  'ュ',  'ョ',  'ッ',
-    'ー',   'ア',   'イ',  'ウ',  'エ',  'オ',  'カ',  'キ',  'ク',   'ケ',  'コ',  'サ',  'シ',  'ス',  'セ',  'ソ',
-    'タ',   'チ',   'ツ',  'テ',  'ト',  'ナ',  'ニ',  'ヌ',  'ネ',   'ノ',  'ハ',  'ヒ',  'フ',  'ヘ',  'ホ',  'マ',
-    'ミ',   'ム',   'メ',  'モ',  'ヤ',  'ユ',  'ヨ',  'ラ',  'リ',   'ル',  'レ',  'ロ',  'ワ',  'ン',  'ﾞ',   'ﾟ', // dakuten and handakuten are lower in the graphic than seen here and get shifted by the code upwards when printing
-    '子',   '悪',   '魔',  '人',  '妖',  '精',  'を',  'ぁ',  'ぃ',   'ぅ',  'ぇ',  'ぉ',  'ゃ',  'ゅ',  'ょ',  'っ',
-    '金',   'あ',   'い',  'う',  'え',  'お',  'か',  'き',  'く',   'け',  'こ',  'さ',  'し',  'す',  'せ',  'そ',
-    'た',   'ち',   'つ',  'て',  'と',  'な',  'に',  'ぬ',  'ね',   'の',  'は',  'ひ',  'ふ',  'へ',  'ほ',  'ま',
-    'み',   'む',   'め',  'も',  'や',  'ゆ',  'よ',  'ら',  'り',   'る',  'れ',  'ろ',  'わ',  'ん',  '指',  '輪',
-    '←',    '↖',   '↑',   '↗',  '→',   '↘',  '↓',  '↙',  '○',    '×',   '□',   '△',  '名',  '刀',  '聖',  '血',
-    '✈',   '★',   '☀',   '☁',  '☃',   '♂',   '♀',  '©',   '®',   '§',    '¶', '∑', '大',  '光',  '邪',  '月'
-];
-
-// const TABLE_PSP: [char; 256] = [
-//     //0      1      2      3      4      5      6      7      8      9      A      B      C      D      E      F
-//     ' ',    '!',   '\'',  '#',   '$',   '%',   '&',   '\'',   '(',   ')',   '男',  '+',   ',',   '-',   '.',   '/',
-//     '0',    '1',   '2',   '3',   '4',   '5',   '6',   '7',   '8',   '9',   ':',   '人',  '手',  '=',   '玉',  '?',
-//     '石',   'A',   'B',   'C',   'D',   'E',   'F',   'G',   'H',   'I',   'J',   'K',   'L',   'M',   'N',   'O',
-//     'P',    'Q',   'R',   'S',   'T',   'U',   'V',   'W',   'X',   'Y',   'Z',   '[',   '剣',  ']',   '盾',  '_',
-//     '書',   'a',   'b',   'c',   'd',   'e',   'f',   'g',   'h',   'i',   'j',   'k',   'l',   'm',   'n',   'o',
-//     'p',    'q',   'r',   's',   't',   'u',   'v',   'w',   'x',   'y',   'z',   '炎',  '氷',  '雷',  '~',   '女',
-//     '力',   '。',   '「',  '」',  '、',  '・',  'ヲ',  'ァ',  'ィ',   'ゥ',  'ェ',  'ォ',  'ャ',  'ュ',  'ョ',  'ッ',
-//     'ー',   'ア',   'イ',  'ウ',  'エ',  'オ',  'カ',  'キ',  'ク',   'ケ',  'コ',  'サ',  'シ',  'ス',  'セ',  'ソ',
-//     'タ',   'チ',   'ツ',  'À',   'Á',  'Å',   'ニ',  'Ç',  'È',   'É',  'Ê',  'Ë',  'Ì',  'Í',  'Î',  'Ï',
-//     'Ñ',   'Ò',     'Ó',  'Ô',   'Ö',   'Ù',   'Ú',  'Û',  'Ü',   'ß',  'à',  'á',  'å',  'ン',  'ç',   'è',
-//     'é',   'ê',     'ë',  'ì',   'í',   'î',   'ï',  'ñ',  'ò',   'ó',  'ô',  'ö',  'ù',  'ú',  'û',  'ü',
-//     'Œ',   'œ',   'い',  'う',  'え',  'お',  'か',  'き',  'く',   'け',  'こ',  'さ',  'し',  'す',  'せ',  'そ',
-//     'た',   'ち',   'つ',  'て',  'と',  'な',  'に',  'ぬ',  'ね',   'の',  'は',  'ひ',  'ふ',  'へ',  'ほ',  'ま',
-//     'み',   'む',   'め',  'も',  'や',  'ゆ',  'よ',  'ら',  'り',   'る',  'れ',  'ろ',  'わ',  'ん',  '指',  '輪',
-//     '←',    '↖',   '↑',   '↗',  '→',   '↘',  '↓',  '↙',  '○',    '×',   '□',   '△',  '名',  '刀',  '聖',  '血',
-//     '✈',   '★',   '☀',   '☁',  '☃',   '♂',   '♀',  '©',   '®',   '§',    '¶', '∑', '大',  '光',  '邪',  '月'
-// ];
-
-const TABLE_PSP: [char; 256] = [
-    //0      1      2      3      4      5      6      7      8      9      A      B      C      D      E      F
-    ' ',    '!',   '\'',  '#',   '$',   '%',   '&',   '\'',   '(',   ')',   '男',  '+',   ',',   '-',   '.',   '/',
-    '0',    '1',   '2',   '3',   '4',   '5',   '6',   '7',   '8',   '9',   ':',   '人',  '手',  '=',   '玉',  '?',
-    '石',   'A',   'B',   'C',   'D',   'E',   'F',   'G',   'H',   'I',   'J',   'K',   'L',   'M',   'N',   'O',
-    'P',    'Q',   'R',   'S',   'T',   'U',   'V',   'W',   'X',   'Y',   'Z',   '[',   '剣',  ']',   '盾',  '_',
-    '書',   'a',   'b',   'c',   'd',   'e',   'f',   'g',   'h',   'i',   'j',   'k',   'l',   'm',   'n',   'o',
-    'p',    'q',   'r',   's',   't',   'u',   'v',   'w',   'x',   'y',   'z',   '炎',  '氷',  '雷',  '~',   '女',
-    '力',   '。',   '「',  '」',  '、',  '・',  'ヲ',  'ァ',  'ィ',   'ゥ',  'ェ',  'ォ',  'ャ',  'ュ',  'ョ',  'ッ',
-    'ー',   'ア',   'イ',  'ウ',  'エ',  'オ',  'カ',  'キ',  'ク',   'ケ',  'コ',  'サ',  'シ',  'ス',  'セ',  'ソ',
-    'タ',   'チ',   'ツ',  'テ',  'ト',  'ナ',  'Ä',  'ヌ',  'ネ',   'ノ',  'ハ',  'ヒ',  'フ',  'ヘ',  'ホ',  'マ',
-    'ミ',   'ム',   'Ó',  'モ',  'Ö',  'ユ',  'ヨ',  'ラ',  'リ',   'ß',  'à',  'á',  'â',  'ä',  'ﾞ',   'è', // dakuten and handakuten are lower in the graphic than seen here and get shifted by the code upwards when printing
-    'é',    'ê',   '魔',  'ì',  'í',  'î',  'を',  'ñ',  'ぃ',   'ó',  'ô',  'ö',  'ù',  'ú',  'ょ',  'ü',
-    '金',   'œ',   'い',  'う',  'え',  'º',  'か',  'き',  'く',   'け',  'こ',  'さ',  'し',  'す',  'せ',  'そ',
-    'た',   'ち',   'つ',  'て',  'と',  'な',  'に',  'ぬ',  'ね',   'の',  'は',  'ひ',  'ふ',  'へ',  'ほ',  'ま',
-    'み',   'む',   'め',  'も',  'や',  'ゆ',  'よ',  'ら',  'り',   'る',  'れ',  'ろ',  'わ',  'ん',  '指',  '輪',
-    '←',    '↖',   '↑',   '↗',  '→',   '↘',  '↓',  '↙',  '○',    '×',   '□',   '△',  '名',  '刀',  '聖',  '血',
-    '✈',   '★',   '☀',   '☁',  '☃',   '♂',   '♀',  '©',   '®',   '§',    '¶', '∑', '大',  '光',  '邪',  '月'
-];
-
-
-#[allow(dead_code)]
-#[allow(unused_assignments)]
-fn convert_j(f: &[u8]) -> String {
-    let mut pos = 0;
-    let mut result = String::new();
-    let mut prev: Option<char> = None;
-    let mut prev_prev: Option<char> = None;
-
-    while pos < f.len() {
-        let ch = f[pos];
-        prev_prev = prev;
-        prev = Some(TABLE[ch as usize]);
-        pos += 1;
-
-        if ch == 0xFF {
-            if pos >= f.len() {
-                break;
-            }
-            let next_ch = f[pos];
-            pos += 1;
-
-            if next_ch == 0 {
-                break;
-            }
-            if next_ch != 0xFF {
-                if let Some(prev_prev_char) = prev_prev {
-                    result.pop();
-                    if let Some(dakuten_char) = dakuten(TABLE[next_ch as usize], prev_prev_char) {
-                        result.push(dakuten_char);
-                    }
-                }
-                continue;
-            }
-        }
-        if ch != 158 && ch != 159 {
-            result.push(TABLE[ch as usize]);
-        }
-    }
-    result
-}
 
 #[allow(dead_code)]
 fn utf8_to_byte_literals_escaped(input: &str) -> String {
@@ -162,95 +14,31 @@ fn utf8_to_byte_literals_escaped(input: &str) -> String {
 }
 
 fn utf8_to_byte_literals(input_str: &str) -> String {
-    let mut bytes = Vec::new();
-    for char in input_str.chars() {
-        if has_dakuten(&char) || has_handakuten(&char) {
-            bytes.extend(dakuten_to_bytes(&char));
-        } else if char == '月' {
-            bytes.push(0xFF);
-            bytes.push(0xFF);
-        } else {
-            if let Some(index) = table_index(&char){
-                bytes.push(index as u8);
-            }
-        }
-    }
-    bytes.push(0xFF);
+    let value = input_str
+        .strip_prefix('"')
+        .and_then(|value| value.strip_suffix('"'))
+        .unwrap_or(input_str);
+    let bytes = encode_menu_string(value, Platform::Psx)
+        .unwrap_or_else(|error| panic!("cannot encode _S({input_str:?}): {error}"));
     let out = bytes.iter()
         .map(|&val| format!("\\x{:02X}", val))
         .collect::<String>();
-    let out2 = format!("\"{}\"", out);
-    out2
+    format!("\"{}\"", out)
 }
 
 fn utf8_to_byte_literals_psp(input_str: &str) -> String {
-    let mut bytes = Vec::new();
-    for char in input_str.chars() {
-        if has_dakuten(&char) || has_handakuten(&char) {
-            bytes.extend(dakuten_to_bytes(&char));
-        } else if char == '月' {
-            bytes.push(0xFF);
-            bytes.push(0xFF);
-        } else {
-            if let Some(index) = table_psp_index(&char){
-                bytes.push(index as u8);
-            }
-        }
-    }
-    bytes.push(0xFF);
+    let value = input_str
+        .strip_prefix('"')
+        .and_then(|value| value.strip_suffix('"'))
+        .unwrap_or(input_str);
+    let bytes = encode_menu_string(value, Platform::Psp)
+        .unwrap_or_else(|error| panic!("cannot encode PSP _S({input_str:?}): {error}"));
     let out = bytes.iter()
         .map(|&val| format!("\\x{:02X}", val))
         .collect::<String>();
-    let out2 = format!("\"{}\"", out);
-    out2
+    format!("\"{}\"", out)
 }
 
-
-fn has_dakuten(utf8_char: &char) -> bool {
-    let dakuten_chars = [
-        'が', 'ぎ', 'ぐ', 'げ', 'ご', 'ざ', 'じ', 'ず', 'ぜ', 'ぞ',
-        'だ', 'ぢ', 'づ', 'で', 'ど', 'ば', 'び', 'ぶ', 'べ', 'ぼ', 
-        'ガ', 'ギ', 'グ', 'ゲ', 'ゴ', 'ザ', 'ジ', 'ズ', 'ゼ', 'ゾ', 
-        'ダ', 'ヂ', 'ヅ', 'デ', 'ド', 'バ', 'ビ', 'ブ', 'ベ', 'ボ', 
-        'ヴ',
-    ];
-    dakuten_chars.contains(&utf8_char)
-}
-
-fn has_handakuten(utf8_char: &char) -> bool {
-    let handakuten_chars = [
-        'ぱ', 'ぴ', 'ぷ', 'ぺ', 'ぽ', 'パ', 'ピ', 'プ', 'ペ', 'ポ',
-    ];
-    handakuten_chars.contains(&utf8_char)
-}
-
-fn dakuten_to_bytes(input_chr: &char) -> Vec<u8> {
-    let no_dakuten = remove_dakuten_handakuten(input_chr);
-    let no_dakuten_bytes = table_index(&no_dakuten).unwrap() as u8;
-    let mut byte = 158;
-    if has_handakuten(input_chr) {
-        byte = 159;
-    }
-    vec![no_dakuten_bytes, 0xFF, byte]
-}
-
-fn remove_dakuten_handakuten(utf8_char: &char) -> char {
-    let table: HashMap<char, char> = [
-        ('が', 'か'), ('ぎ', 'き'), ('ぐ', 'く'), ('げ', 'け'), ('ご', 'こ'),
-        ('ざ', 'さ'), ('じ', 'し'), ('ず', 'す'), ('ぜ', 'せ'), ('ぞ', 'そ'),
-        ('だ', 'た'), ('ぢ', 'ち'), ('づ', 'つ'), ('で', 'て'), ('ど', 'と'),
-        ('ば', 'は'), ('び', 'ひ'), ('ぶ', 'ふ'), ('べ', 'へ'), ('ぼ', 'ほ'),
-        ('ぱ', 'は'), ('ぴ', 'ひ'), ('ぷ', 'ふ'), ('ぺ', 'へ'), ('ぽ', 'ほ'),
-        ('ガ', 'カ'), ('ギ', 'キ'), ('グ', 'ク'), ('ゲ', 'ケ'), ('ゴ', 'コ'),
-        ('ザ', 'サ'), ('ジ', 'シ'), ('ズ', 'ス'), ('ゼ', 'セ'), ('ゾ', 'ソ'),
-        ('ダ', 'タ'), ('ヂ', 'チ'), ('ヅ', 'ツ'), ('デ', 'テ'), ('ド', 'ト'),
-        ('バ', 'ハ'), ('ビ', 'ヒ'), ('ブ', 'フ'), ('ベ', 'ヘ'), ('ボ', 'ホ'),
-        ('パ', 'ハ'), ('ピ', 'ヒ'), ('プ', 'フ'), ('ペ', 'ヘ'), ('ポ', 'ホ'),
-        ('ヴ', 'ウ')
-    ].iter().cloned().collect();
-    
-    *table.get(utf8_char).unwrap_or(utf8_char)
-}
 
 // fn parse(filename: &str, str_offset: &str) -> io::Result<()> {
 //     let offset = usize::from_str_radix(str_offset, 16).unwrap();
@@ -429,20 +217,6 @@ lazy_static! {
         .concat();
         values.chars().enumerate().map(|(index, value)| (value, index)).collect::<HashMap<char, usize>>()
     };
-    static ref UTF8_TO_INDEX: HashMap<char, usize> = {
-        let mut map = HashMap::new();
-        for (index, value) in TABLE.iter().enumerate() {
-            map.insert(*value, index);
-        }
-        map
-    };
-    static ref UTF8_PSP_TO_INDEX: HashMap<char, usize> = {
-        let mut map = HashMap::new();
-        for (index, value) in TABLE_PSP.iter().enumerate() {
-            map.insert(*value, index);
-        }
-        map
-    };
 }
 
 fn fix_se(chr: char) -> char {
@@ -481,13 +255,6 @@ fn fix_se(chr: char) -> char {
     }
 }
 
-fn table_index(c: &char) -> Option<usize> {
-    return UTF8_TO_INDEX.get(c).copied();
-}
-
-fn table_psp_index(c: &char) -> Option<usize> {
-    return UTF8_PSP_TO_INDEX.get(c).copied();
-}
 
 fn alt_hd_utf8_to_index(c: &char) -> Option<usize> {
     return ALT_HD_UTF8_TO_INDEX.get(c).copied();
@@ -689,6 +456,89 @@ fn tempfile_path() -> std::path::PathBuf {
     dir
 }
 
+#[derive(serde::Deserialize)]
+struct CodecRequest {
+    #[serde(default)]
+    id: Option<String>,
+    #[serde(default)]
+    text: Option<String>,
+    #[serde(default)]
+    bytes: Option<String>,
+}
+
+#[derive(serde::Serialize)]
+struct CodecResponse {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    text: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    bytes: Option<String>,
+}
+
+fn parse_hex(value: &str) -> Result<Vec<u8>, String> {
+    if !value.is_ascii() {
+        return Err("hex byte string must contain only ASCII digits".to_string());
+    }
+    if value.len() % 2 != 0 {
+        return Err("hex byte string must have an even number of digits".to_string());
+    }
+    (0..value.len())
+        .step_by(2)
+        .map(|index| {
+            u8::from_str_radix(&value[index..index + 2], 16)
+                .map_err(|_| format!("invalid hex byte at offset {index}"))
+        })
+        .collect()
+}
+
+fn codec_batch(operation: &str, platform: Platform) -> Result<(), String> {
+    let stdin = io::stdin();
+    let mut responses = Vec::new();
+    for (line_number, line) in stdin.lock().lines().enumerate() {
+        let line = line.map_err(|error| error.to_string())?;
+        if line.trim().is_empty() {
+            continue;
+        }
+        let request: CodecRequest = serde_json::from_str(&line)
+            .map_err(|error| format!("line {}: invalid JSON: {error}", line_number + 1))?;
+        let response = match operation {
+            "encode" => {
+                let text = request
+                    .text
+                    .ok_or_else(|| format!("line {}: missing text", line_number + 1))?;
+                let bytes = encode_menu_string(&text, platform)
+                    .map_err(|error| format!("line {}: {error}", line_number + 1))?;
+                CodecResponse {
+                    id: request.id,
+                    text: None,
+                    bytes: Some(bytes.iter().map(|byte| format!("{byte:02X}")).collect()),
+                }
+            }
+            "decode" => {
+                let bytes = request
+                    .bytes
+                    .ok_or_else(|| format!("line {}: missing bytes", line_number + 1))?;
+                let bytes = parse_hex(&bytes)
+                    .map_err(|error| format!("line {}: {error}", line_number + 1))?;
+                let text = decode_menu_string(&bytes, platform)
+                    .map_err(|error| format!("line {}: {error}", line_number + 1))?;
+                CodecResponse {
+                    id: request.id,
+                    text: Some(text),
+                    bytes: None,
+                }
+            }
+            _ => return Err(format!("unsupported codec operation {operation:?}")),
+        };
+        responses.push(serde_json::to_string(&response).map_err(|error| error.to_string())?);
+    }
+    for response in responses {
+        println!("{}", response);
+    }
+    Ok(())
+}
+
 fn main() {
     let matches = Command::new("string processor")
         .version("1.0")
@@ -723,6 +573,19 @@ fn main() {
                         .action(ArgAction::Append)
                         .num_args(0..)
                 )
+        )
+        .subcommand(
+            Command::new("codec")
+                .about("encode or decode newline-delimited JSON without FFI")
+                .subcommand_required(true)
+                .subcommand(
+                    Command::new("encode")
+                        .arg(Arg::new("platform").long("platform").required(true)),
+                )
+                .subcommand(
+                    Command::new("decode")
+                        .arg(Arg::new("platform").long("platform").required(true)),
+                ),
         )
         .get_matches();
 
@@ -759,6 +622,16 @@ fn main() {
                 Err(e) => cc_fail(&format!("{}", e)),
             }
         }
+        Some(("codec", sub_m)) => {
+            let (operation, operation_matches) = sub_m.subcommand().unwrap();
+            let platform = operation_matches
+                .get_one::<String>("platform")
+                .and_then(|value| Platform::parse(value).ok())
+                .unwrap_or_else(|| cc_fail("codec platform must be psx or psp"));
+            if let Err(error) = codec_batch(operation, platform) {
+                cc_fail(&error);
+            }
+        }
         _ => {}
     }
 }
@@ -768,13 +641,10 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_dakuten() {
-        assert_eq!(dakuten('゙', 'シ'), Some('ジ'));
-        assert_eq!(dakuten('゙', 'ク'), Some('グ'));
-        assert_eq!(dakuten('゙', 'て'), Some('で'));
-        assert_eq!(dakuten('゚', 'フ'), Some('プ'));
-        assert_eq!(dakuten('゚', 'ヒ'), Some('ピ'));
-        assert_eq!(dakuten('゙', 'X'), None);
+    fn test_parse_hex() {
+        assert_eq!(parse_hex("21A0FF").unwrap(), vec![0x21, 0xA0, 0xFF]);
+        assert!(parse_hex("123").is_err());
+        assert!(parse_hex("AéB").is_err());
     }
 
     #[test]

@@ -4,7 +4,10 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"path/filepath"
+	"regexp"
 	"slices"
+	"strings"
 
 	"github.com/spf13/cobra"
 	"github.com/xeeynamo/sotn-decomp/tools/sotn-assets/format"
@@ -105,6 +108,56 @@ func main() {
 			return extractFromConfig(c)
 		},
 	})
+	stringCatalogCmd := &cobra.Command{
+		Use:          "build-string-catalog <catalog.yaml> <output.h>",
+		Short:        "Build a semantic string catalog into a target-specific C header",
+		SilenceUsage: true,
+		Args:         cobra.ExactArgs(2),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			platformName, _ := cmd.Flags().GetString("platform")
+			platform := sotn.Platform(platformName)
+			if platform != sotn.PlatformPSX && platform != sotn.PlatformPSP {
+				return fmt.Errorf("platform must be psx or psp")
+			}
+			baseData, err := os.ReadFile(args[0])
+			if err != nil {
+				return err
+			}
+			catalog, err := sotn.ParseStringCatalog(baseData)
+			if err != nil {
+				return err
+			}
+			overlayPath, _ := cmd.Flags().GetString("overlay")
+			if overlayPath != "" {
+				overlayData, err := os.ReadFile(overlayPath)
+				if err != nil {
+					return err
+				}
+				overlay, err := sotn.ParseStringCatalog(overlayData)
+				if err != nil {
+					return err
+				}
+				catalog, err = sotn.ApplyStringCatalogOverlay(catalog, overlay)
+				if err != nil {
+					return err
+				}
+			}
+			guard := strings.ToUpper(filepath.Base(args[1]))
+			guard = regexp.MustCompile(`[^A-Z0-9_]`).ReplaceAllString(guard, "_")
+			if guard == "" || guard[0] >= '0' && guard[0] <= '9' {
+				guard = "SOTN_" + guard
+			}
+			header, err := sotn.GenerateStringCatalogHeader(catalog, platform, guard)
+			if err != nil {
+				return err
+			}
+			return os.WriteFile(args[1], header, 0o644)
+		},
+	}
+	stringCatalogCmd.Flags().String("platform", "", "target codec: psx or psp")
+	_ = stringCatalogCmd.MarkFlagRequired("platform")
+	stringCatalogCmd.Flags().String("overlay", "", "optional partial locale or mod overlay")
+	rootCmd.AddCommand(stringCatalogCmd)
 	rootCmd.AddCommand(&cobra.Command{
 		Use:          "build-assets <asset.yaml>",
 		Short:        "Build asset files from the extracted assets",

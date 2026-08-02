@@ -72,6 +72,8 @@ ninja.build(
     inputs=[
         'tools/sotn_str/Cargo.toml',
         'tools/sotn_str/Cargo.lock',
+        'tools/sotn_str/src/generated_codec.rs',
+        'tools/sotn_str/src/lib.rs',
         'tools/sotn_str/src/main.rs',
     ])
 

@@ -1,0 +1,68 @@
+{
+  "encode": [
+    {
+      "name": "empty",
+      "text": "",
+      "psx": "FF",
+      "psp": "FF"
+    },
+    {
+      "name": "ascii",
+      "text": "Test",
+      "psx": "34455354FF",
+      "psp": "34455354FF"
+    },
+    {
+      "name": "psp accent",
+      "text": "Aé",
+      "psp": "21A0FF"
+    },
+    {
+      "name": "voice marks and escaped glyph",
+      "text": "ガパ月",
+      "psx": "76FF9E8AFF9FFFFFFF"
+    }
+  ],
+  "decode": [
+    {
+      "name": "ascii",
+      "bytes": "34455354FF00",
+      "psx": "Test",
+      "psp": "Test"
+    },
+    {
+      "name": "psp accent",
+      "bytes": "21A0FF00",
+      "psp": "Aé"
+    },
+    {
+      "name": "voice marks and escaped glyph",
+      "bytes": "76FF9E8AFF9FFFFFFF00",
+      "psx": "ガパ月"
+    }
+  ],
+  "invalid_encode": [
+    {
+      "name": "unsupported character",
+      "text": "€",
+      "platforms": ["psx", "psp"]
+    },
+    {
+      "name": "glyph unavailable on target",
+      "text": "ン",
+      "platforms": ["psp"]
+    }
+  ],
+  "invalid_decode": [
+    {
+      "name": "unknown escape",
+      "bytes": "FF0100",
+      "platforms": ["psx", "psp"]
+    },
+    {
+      "name": "voice mark without base",
+      "bytes": "FF9E00",
+      "platforms": ["psx", "psp"]
+    }
+  ]
+}

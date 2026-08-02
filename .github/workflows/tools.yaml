@@ -39,6 +39,10 @@ jobs:
       - name: Test asset tool
         working-directory: tools/sotn-assets
         run: go test .
+      - name: Test shared string codec
+        run: |
+          python3 tools/sotn_codec/generate.py --check
+          cd tools/sotn-assets && go test ./sotn
       - name: Test sotn string
         working-directory: tools/sotn_str
         run: cargo test

@@ -1,0 +1,4 @@
+locale: en-US
+strings:
+  STR_ENEMY_ZOMBIE: Zombie
+  STR_ITEM_HEART_MAX_UP: Heart max up

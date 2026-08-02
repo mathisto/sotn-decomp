@@ -1,0 +1,4 @@
+locale: fr-FR
+strings:
+  STR_ENEMY_ZOMBIE: Mort-vivant
+  STR_ITEM_HEART_MAX_UP: Coeur max
