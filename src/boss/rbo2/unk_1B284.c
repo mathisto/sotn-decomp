@@ -12,7 +12,67 @@ INCLUDE_ASM("boss/rbo2/nonmatchings/unk_1B284", func_801CDC80);
 
 INCLUDE_ASM("boss/rbo2/nonmatchings/unk_1B284", func_us_8019B52C);
 
-INCLUDE_ASM("boss/rbo2/nonmatchings/unk_1B284", func_us_8019C718);
+extern EInit D_us_801804A0;
+extern u8 D_us_801806E0[];
+extern u8 D_us_801806F8[];
+extern s32 D_us_80180B5C;
+
+void func_us_8019C718(Entity* self) {
+    s32 offset;
+    s32 playerY;
+    s32 playerX;
+    s16 angle;
+
+    if (D_us_80180B5C & 8) {
+        self->flags |= FLAG_DEAD;
+    }
+    if ((self->flags & FLAG_DEAD) && self->step != 3) {
+        PlaySfxPositional(SFX_METAL_CLANG_C);
+        self->hitboxState = 0;
+        SetStep(3);
+    }
+
+    switch (self->step) {
+    case 0:
+        InitializeEntity(D_us_801804A0);
+        self->facingLeft = Random() & 1;
+        self->hitboxState = 0;
+        // fallthrough
+
+    case 1:
+        if (AnimateEntity(D_us_801806E0, self) == 0) {
+            self->hitboxState = 3;
+            self->animCurFrame = 0x4F;
+            self->drawFlags = ENTITY_ROTATE;
+            SetStep(2);
+        }
+        return;
+
+    case 2:
+        if (self->step_s == 0) {
+            playerX = PLAYER.posX.i.hi;
+            offset = 0x20;
+            playerY = PLAYER.posY.i.hi;
+            playerX = playerX - offset + (Random() & 0x3F);
+            playerY = playerY - offset + (Random() & 0x3F);
+            angle =
+                ratan2(playerY - self->posY.i.hi, playerX - self->posX.i.hi);
+            self->velocityX = (rcos(angle) << 16) >> 12;
+            self->velocityY = (rsin(angle) << 16) >> 12;
+            PlaySfxPositional(SFX_WEAPON_SCRAPE_ECHO);
+            self->step_s++;
+        }
+        MoveEntity();
+        self->rotate += 0xC0;
+        return;
+
+    case 3:
+        if (AnimateEntity(D_us_801806F8, self) == 0) {
+            DestroyEntity(self);
+        }
+        break;
+    }
+}
 
 INCLUDE_ASM("boss/rbo2/nonmatchings/unk_1B284", func_us_8019C924);
 
